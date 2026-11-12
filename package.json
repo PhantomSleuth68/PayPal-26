@@ -1,0 +1,45 @@
+{
+  "name": "paypal'26",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PhantomSleuth68/PayPal-26.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/PhantomSleuth68/PayPal-26/issues"
+  },
+  "homepage": "https://github.com/PhantomSleuth68/PayPal-26#readme",
+  "dependencies": {
+    "@google/genai": "^3.2.0",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.2",
+    "better-sqlite3": "^13.1.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.72.0",
+    "next": "^14.2.35",
+    "postcss": "^8.5.32",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "zod": "^4.6.7"
+  }
+}
