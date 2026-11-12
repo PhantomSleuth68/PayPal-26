@@ -15,19 +15,21 @@ export interface AuditorVerdict {
   verdict: 'approve' | 'escalate' | 'block';
   reasons: string[];
   confidence: number;
+  aiUnavailable?: boolean;
 }
 
 export interface InjectionResult {
   injectionDetected: boolean;
   evidence: string[];
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  aiUnavailable?: boolean;
 }
 
 export const PurchaseItemSchema = z.object({
   title: z.string(),
-  unitPrice: z.number().positive(),
+  unitPrice: z.number().min(0),
   quantity: z.number().int().positive(),
-  totalPrice: z.number().positive(),
+  totalPrice: z.number().min(0),
   listingId: z.string(),
 });
 export type PurchaseItem = z.infer<typeof PurchaseItemSchema>;
@@ -45,9 +47,9 @@ export const PurchaseProposalSchema = z.object({
   id: z.string().optional(),
   items: z.array(PurchaseItemSchema).min(1),
   seller: SellerSchema,
-  unitPrice: z.number().positive(),
+  unitPrice: z.number().min(0),
   quantity: z.number().int().positive(),
-  total: z.number().positive(),
+  total: z.number().min(0),
   category: z.string(),
   reasoning: z.string(),
   sourceListingIds: z.array(z.string()),
@@ -105,7 +107,7 @@ export interface AuditLogEntry {
   timestamp: string;
   eventType: AuditEventType;
   summary: string;
-  details?: Record<string, unknown>;
+  details?: any;
   ruleTrace?: RuleTrace[];
   decision?: Decision;
   runId?: string;

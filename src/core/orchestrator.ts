@@ -7,6 +7,7 @@ import {
   PolicyEvaluationResult,
   PurchaseProposal,
   RuleTrace,
+  SpendRecord,
 } from './types';
 import { mockProductProvider } from '../providers/products/mock-provider';
 import { ProductListing } from '../providers/products/types';
@@ -24,7 +25,7 @@ import {
   createApproval,
   isKillSwitchActive,
 } from './db';
-import { callGeminiStructured, FAST_MODEL } from '../agents/gemini-client';
+import { callGeminiStructured, FAST_MODEL, AiUnavailableError, isRetryableAiError } from '../agents/gemini-client';
 import { z } from 'zod';
 
 export interface PipelineStageResult {
@@ -176,14 +177,49 @@ export async function runShoppingPipeline(
       durationMs: Date.now() - t1,
     });
   } catch (err: any) {
+    const isAiUnavailable =
+      err instanceof AiUnavailableError ||
+      err.code === 'AI_UNAVAILABLE' ||
+      isRetryableAiError(err) ||
+      err.message?.includes('AI_UNAVAILABLE');
+
+    const errorMessage = isAiUnavailable ? 'AI_UNAVAILABLE' : err.message;
+    const blockingReason = isAiUnavailable
+      ? 'AI_UNAVAILABLE: Autonomous shopper service unavailable after retries (503/429). Fail-closed safeguard engaged.'
+      : `Shopper agent error: ${err.message}`;
+
     stages.push({
       stage: 'shopper',
       name: 'Autonomous Shopper Agent',
       status: 'blocked',
-      summary: `Shopper agent error: ${err.message}`,
+      summary: blockingReason,
       durationMs: Date.now() - t1,
     });
-    return { requestId, userRequest, decision: 'BLOCK', stages, error: err.message };
+
+    const fallbackEvaluation: PolicyEvaluationResult = {
+      decision: 'BLOCK',
+      ruleTrace: [
+        {
+          ruleId: isAiUnavailable ? 'AI_UNAVAILABLE' : 'SHOPPER_ERROR',
+          name: 'AI Shopper Availability Guardrail',
+          passed: false,
+          verdict: 'BLOCK',
+          reason: blockingReason,
+        },
+      ],
+      summary: `Transaction BLOCKED: ${blockingReason}`,
+      blockingReason: isAiUnavailable ? 'AI_UNAVAILABLE' : blockingReason,
+    };
+
+    return {
+      requestId,
+      userRequest,
+      decision: 'BLOCK',
+      stages,
+      matchedListings,
+      error: errorMessage,
+      evaluationResult: fallbackEvaluation,
+    };
   }
 
   // Stage 3: Injection Shield

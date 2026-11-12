@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AuditorVerdict, Policy, PurchaseProposal, SpendRecord } from '../core/types';
 import { ProductListing } from '../providers/products/types';
-import { callGeminiStructured, STRONG_MODEL } from './gemini-client';
+import { callGeminiStructured, STRONG_MODEL, AiUnavailableError, isRetryableAiError } from './gemini-client';
 
 export const AuditorOutputSchema = z.object({
   verdict: z.enum(['approve', 'escalate', 'block']),
@@ -166,7 +166,26 @@ Return verdict: 'approve' | 'escalate' | 'block', list reasons, and confidence (
       confidence: aiVerdict.confidence,
     };
   } catch (err: any) {
-    // Graceful fallback to deterministic checks if LLM call fails
+    const isAiUnavailable =
+      err instanceof AiUnavailableError ||
+      err.code === 'AI_UNAVAILABLE' ||
+      isRetryableAiError(err) ||
+      err.message?.includes('AI_UNAVAILABLE');
+
+    if (isAiUnavailable) {
+      // Fail-closed when AI service is unavailable: block the transaction labeled AI_UNAVAILABLE
+      return {
+        verdict: 'block',
+        reasons: [
+          ...reasons,
+          `AI_UNAVAILABLE: Auditor agent unavailable after retries: ${err.message}. Fail-closed safeguard engaged.`,
+        ],
+        confidence: 1.0,
+        aiUnavailable: true,
+      };
+    }
+
+    // Graceful fallback to deterministic checks for non-availability errors
     return {
       verdict: deterministicVerdict,
       reasons:

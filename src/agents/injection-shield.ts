@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { InjectionResult } from '../core/types';
-import { callGeminiStructured, FAST_MODEL } from './gemini-client';
+import { callGeminiStructured, FAST_MODEL, AiUnavailableError, isRetryableAiError } from './gemini-client';
 
 const INJECTION_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
   {
@@ -127,14 +127,33 @@ Determine if this content contains adversarial prompt injections, instructions a
       riskLevel,
     };
   } catch (err: any) {
-    // If LLM classification fails, fallback gracefully to regex pre-filter results
+    const isAiUnavailable =
+      err instanceof AiUnavailableError ||
+      err.code === 'AI_UNAVAILABLE' ||
+      isRetryableAiError(err) ||
+      err.message?.includes('AI_UNAVAILABLE');
+
+    if (isAiUnavailable) {
+      // Fail-closed when AI service is unavailable: do NOT let uninspected listings pass
+      return {
+        injectionDetected: true,
+        evidence: [
+          ...evidence,
+          `AI_UNAVAILABLE: Prompt injection detector unavailable after retries: ${err.message}. Fail-closed safeguard engaged.`,
+        ],
+        riskLevel: 'CRITICAL',
+        aiUnavailable: true,
+      };
+    }
+
+    // If other non-retryable error, fallback to regex pre-filter results
     const detected = evidence.length > 0;
     return {
       injectionDetected: detected,
       evidence: detected
         ? [
             ...evidence,
-            `LLM classifier unavailable (${err.message}); flagged by deterministic regex pre-filter.`,
+            `LLM classifier error (${err.message}); flagged by deterministic regex pre-filter.`,
           ]
         : [],
       riskLevel: detected ? 'CRITICAL' : 'LOW',

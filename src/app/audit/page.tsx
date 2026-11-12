@@ -102,7 +102,7 @@ function AuditLogContent() {
         </div>
 
         <button
-          onClick={fetchLogs}
+          onClick={() => fetchLogs()}
           className="self-start sm:self-auto px-3 py-1.5 rounded-lg bg-gray-900 border border-gray-800 text-xs font-semibold text-gray-300 hover:text-white flex items-center space-x-1.5"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />

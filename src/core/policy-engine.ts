@@ -81,12 +81,18 @@ export function evaluatePolicy(
 
   // 2. Prompt Injection Detection Result
   if (injectionResult && injectionResult.injectionDetected) {
+    const isAiUnavail = Boolean(
+      injectionResult.aiUnavailable ||
+      injectionResult.evidence.some((e) => e.includes('AI_UNAVAILABLE'))
+    );
     const trace: RuleTrace = {
-      ruleId: 'PROMPT_INJECTION_DETECTED',
-      name: 'Injection Shield Check',
+      ruleId: isAiUnavail ? 'AI_UNAVAILABLE' : 'PROMPT_INJECTION_DETECTED',
+      name: isAiUnavail ? 'AI Model Availability Guardrail' : 'Injection Shield Check',
       passed: false,
       verdict: 'BLOCK',
-      reason: `Adversarial prompt injection detected: ${injectionResult.evidence.join('; ')}`,
+      reason: isAiUnavail
+        ? `AI_UNAVAILABLE: ${injectionResult.evidence.join('; ')}`
+        : `Adversarial prompt injection detected: ${injectionResult.evidence.join('; ')}`,
       details: { evidence: injectionResult.evidence, riskLevel: injectionResult.riskLevel },
     };
     ruleTrace.push(trace);
@@ -445,12 +451,18 @@ export function evaluatePolicy(
   // 15. Auditor Verdict Integration (Can only tighten)
   if (auditorVerdict) {
     if (auditorVerdict.verdict === 'block') {
+      const isAiUnavail = Boolean(
+        auditorVerdict.aiUnavailable ||
+        auditorVerdict.reasons.some((r) => r.includes('AI_UNAVAILABLE'))
+      );
       const trace: RuleTrace = {
-        ruleId: 'AUDITOR_BLOCKED',
-        name: 'Independent Auditor Agent',
+        ruleId: isAiUnavail ? 'AI_UNAVAILABLE' : 'AUDITOR_BLOCKED',
+        name: isAiUnavail ? 'AI Model Availability Guardrail' : 'Independent Auditor Agent',
         passed: false,
         verdict: 'BLOCK',
-        reason: `Auditor agent blocked purchase: ${auditorVerdict.reasons.join('; ')}`,
+        reason: isAiUnavail
+          ? `AI_UNAVAILABLE: ${auditorVerdict.reasons.join('; ')}`
+          : `Auditor agent blocked purchase: ${auditorVerdict.reasons.join('; ')}`,
         details: { confidence: auditorVerdict.confidence, reasons: auditorVerdict.reasons },
       };
       ruleTrace.push(trace);

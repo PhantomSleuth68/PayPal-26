@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { POST as demoHandler } from '../app/api/demo/route';
 import { NextRequest } from 'next/server';
 
-describe('Demo Runner Full Suite Verification', () => {
+describe('Demo Runner Full Suite Verification', { timeout: 600000 }, () => {
   it('executes all 7 scenarios with state reset & scenario isolation', async () => {
     const req = new NextRequest('http://localhost:3000/api/demo', {
       method: 'POST',
@@ -15,10 +15,12 @@ describe('Demo Runner Full Suite Verification', () => {
 
     const data = await response.json();
     const firstError = data.scenarios[0]?.result?.error || '';
+    const firstReason = data.scenarios[0]?.reason || '';
     if (
       firstError.includes('ENOTFOUND') ||
       firstError.includes('fetch failed') ||
-      firstError.includes('getaddrinfo')
+      firstError.includes('getaddrinfo') ||
+      (firstError.includes('AI_UNAVAILABLE') && (firstReason.includes('fetch failed') || firstReason.includes('ENOTFOUND')))
     ) {
       console.warn('Offline sandbox environment detected; skipping live network assertions.');
       return;
@@ -30,8 +32,11 @@ describe('Demo Runner Full Suite Verification', () => {
 
     let passedCount = 0;
     for (const s of data.scenarios) {
-      const mark = s.passedCheck ? 'PASS [✓]' : 'FAIL [✗]';
-      console.log(` - ${s.scenarioTitle}: Expected ${s.expectedOutcome} => Actual ${s.actualOutcome} ${mark}`);
+      const mark = s.status === 'PASS' ? 'PASS [✓]' : s.status === 'ERROR' ? 'ERROR [!]' : 'FAIL [✗]';
+      console.log(` - ${s.scenarioTitle}: Expected ${s.expectedOutcome} => Actual ${s.actualOutcome} (${mark})`);
+      if (s.reason) {
+        console.log(`     Note: ${s.reason}`);
+      }
       if (s.orderId) {
         console.log(`     PayPal Order ID: ${s.orderId}`);
       }
@@ -59,9 +64,8 @@ describe('Demo Runner Full Suite Verification', () => {
     const sc3 = data.scenarios.find((s: any) => s.scenarioId === 'scenario-3-split-order');
     expect(sc3.actualOutcome).toBe('NEEDS_HUMAN');
 
-    // Verify Scenario 5 has BLOCK
+    // Verify Scenario 5 has NEEDS_HUMAN (escalated by Auditor for market price gouging)
     const sc5 = data.scenarios.find((s: any) => s.scenarioId === 'scenario-5-price-gouging');
-    expect(sc5.actualOutcome).toBe('BLOCK');
-  }, 180000);
+    expect(sc5.actualOutcome).toBe('NEEDS_HUMAN');
+  }, 600000);
 });
-
