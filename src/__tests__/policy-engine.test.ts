@@ -324,5 +324,102 @@ describe('Policy Engine - Deterministic Evaluation & Hard Limits', () => {
       expect(result.decision).toBe('NEEDS_HUMAN');
     });
   });
+
+  describe('Duplicate Purchase Detection with Configurable Window', () => {
+    it('BLOCKS duplicate purchase of the same item within 10 minutes (rapid replay protection)', () => {
+      const proposal = createMockProposal({ total: 35.0, unitPrice: 35.0 });
+      const priorSpend: SpendRecord[] = [
+        {
+          id: 'spend-mouse-1',
+          amount: 35.0,
+          category: 'office supplies',
+          timestamp: new Date(Date.now() - 3 * 60 * 1000).toISOString(), // 3 minutes ago
+          status: 'COMPLETED',
+          proposalSummary: 'Ergonomic Wireless Optical Mouse',
+        },
+      ];
+
+      const result = evaluatePolicy(DEFAULT_POLICY, proposal, priorSpend);
+      expect(result.decision).toBe('BLOCK');
+      expect(result.blockingReason).toContain('potential replay or runaway loop');
+      expect(result.ruleTrace.some((t) => t.ruleId === 'DUPLICATE_PURCHASE_RAPID_BLOCK')).toBe(true);
+    });
+
+    it('returns NEEDS_HUMAN for duplicate of same item within 30-day window but outside 10 minutes', () => {
+      const proposal = createMockProposal({ total: 35.0, unitPrice: 35.0 });
+      const priorSpend: SpendRecord[] = [
+        {
+          id: 'spend-mouse-prior-day',
+          amount: 35.0,
+          category: 'office supplies',
+          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+          status: 'COMPLETED',
+          proposalSummary: 'Ergonomic Wireless Optical Mouse',
+        },
+      ];
+
+      const result = evaluatePolicy(DEFAULT_POLICY, proposal, priorSpend);
+      expect(result.decision).toBe('NEEDS_HUMAN');
+      expect(result.requiresHumanReason).toContain('within the 30-day policy window');
+      expect(result.requiresHumanReason).toContain('Escalated for human review');
+    });
+
+    it('AUTO_APPROVES duplicate of same item outside the 30-day window (e.g. 35 days ago)', () => {
+      const proposal = createMockProposal({ total: 35.0, unitPrice: 35.0 });
+      const priorSpend: SpendRecord[] = [
+        {
+          id: 'spend-mouse-old',
+          amount: 35.0,
+          category: 'office supplies',
+          timestamp: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(), // 35 days ago
+          status: 'COMPLETED',
+          proposalSummary: 'Ergonomic Wireless Optical Mouse',
+        },
+      ];
+
+      const result = evaluatePolicy(DEFAULT_POLICY, proposal, priorSpend);
+      expect(result.decision).toBe('AUTO_APPROVE');
+      const dupTrace = result.ruleTrace.find((t) => t.ruleId === 'DUPLICATE_CHECK_PASSED');
+      expect(dupTrace?.passed).toBe(true);
+    });
+
+    it('honors a custom configured window (e.g. 7-day window and 15-minute rapid block)', () => {
+      const customPolicy = {
+        ...DEFAULT_POLICY,
+        duplicateWindowDays: 7,
+        duplicateRapidBlockMinutes: 15,
+      };
+
+      const proposal = createMockProposal({ total: 35.0, unitPrice: 35.0 });
+
+      // Case A: 12 minutes ago is within the 15-min rapid threshold -> BLOCK
+      const rapidPrior: SpendRecord[] = [
+        {
+          id: 'spend-rapid-12m',
+          amount: 35.0,
+          category: 'office supplies',
+          timestamp: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+          status: 'COMPLETED',
+          proposalSummary: 'Ergonomic Wireless Optical Mouse',
+        },
+      ];
+      const resA = evaluatePolicy(customPolicy, proposal, rapidPrior);
+      expect(resA.decision).toBe('BLOCK');
+
+      // Case B: 10 days ago is outside the custom 7-day window -> AUTO_APPROVE
+      const outsidePrior: SpendRecord[] = [
+        {
+          id: 'spend-outside-10d',
+          amount: 35.0,
+          category: 'office supplies',
+          timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          status: 'COMPLETED',
+          proposalSummary: 'Ergonomic Wireless Optical Mouse',
+        },
+      ];
+      const resB = evaluatePolicy(customPolicy, proposal, outsidePrior);
+      expect(resB.decision).toBe('AUTO_APPROVE');
+    });
+  });
 });
 

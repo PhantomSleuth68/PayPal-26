@@ -26,6 +26,8 @@ export const DEFAULT_POLICY: Policy = {
   blockedKeywords: ['cryptocurrency', 'gift card', 'cash', 'gambling', 'lottery'],
   blockedSellers: ['seller-fraud-corp', 'scam-depot'],
   killSwitchActive: false,
+  duplicateWindowDays: 30, // Default 30-day duplicate detection window
+  duplicateRapidBlockMinutes: 10, // Default 10-minute rapid duplicate block threshold
 };
 
 export const DECISION_RANKS: Record<Decision, number> = {
@@ -365,7 +367,82 @@ export function evaluatePolicy(
     });
   }
 
-  // 14. Auditor Verdict Integration (Can only tighten)
+  // 14. Duplicate Purchase Detection (Configurable window, default 30 days; repeat within window -> NEEDS_HUMAN; within 10 min -> BLOCK)
+  const windowDays = policy.duplicateWindowDays ?? 30;
+  const rapidBlockMinutes = policy.duplicateRapidBlockMinutes ?? 10;
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+  const rapidBlockMs = rapidBlockMinutes * 60 * 1000;
+  const evalTimestamp = Date.now();
+
+  let matchedDuplicate: SpendRecord | null = null;
+  let duplicateDiffMs = 0;
+  let duplicateItemName = '';
+
+  for (const item of proposal.items) {
+    const itemNormTitle = item.title.trim().toLowerCase();
+    const candidate = completedSpend.find((s) => {
+      const sTime = new Date(s.timestamp).getTime();
+      const diff = evalTimestamp - sTime;
+      if (diff < 0 || diff > windowMs) return false;
+
+      if (s.listingId && item.listingId && s.listingId === item.listingId) {
+        return true;
+      }
+      if (s.itemTitle && s.itemTitle.trim().toLowerCase() === itemNormTitle) {
+        return true;
+      }
+      if (s.proposalSummary) {
+        const sumNorm = s.proposalSummary.trim().toLowerCase();
+        return sumNorm.includes(itemNormTitle) || itemNormTitle.includes(sumNorm);
+      }
+      return false;
+    });
+
+    if (candidate) {
+      matchedDuplicate = candidate;
+      duplicateDiffMs = evalTimestamp - new Date(candidate.timestamp).getTime();
+      duplicateItemName = item.title;
+      break;
+    }
+  }
+
+  if (matchedDuplicate) {
+    if (duplicateDiffMs <= rapidBlockMs) {
+      const diffMinDisplay = Math.max(0, Math.round(duplicateDiffMs / 60000));
+      const trace: RuleTrace = {
+        ruleId: 'DUPLICATE_PURCHASE_RAPID_BLOCK',
+        name: 'Rapid Duplicate Purchase Prevention',
+        passed: false,
+        verdict: 'BLOCK',
+        reason: `Duplicate purchase of identical item ("${duplicateItemName}") attempted within ${diffMinDisplay} minute(s) (rapid block threshold: ${rapidBlockMinutes} minutes). Blocked as potential replay or runaway loop.`,
+        details: { duplicateItemName, diffMinutes: duplicateDiffMs / 60000, rapidBlockMinutes },
+      };
+      ruleTrace.push(trace);
+      decision = stricterDecision(decision, 'BLOCK');
+    } else {
+      const daysAgo = (duplicateDiffMs / (1000 * 60 * 60 * 24)).toFixed(1);
+      const trace: RuleTrace = {
+        ruleId: 'DUPLICATE_PURCHASE_WINDOW_ESCALATION',
+        name: 'Duplicate Purchase Window Check',
+        passed: true,
+        verdict: 'NEEDS_HUMAN',
+        reason: `Repeat purchase of identical item ("${duplicateItemName}") within the ${windowDays}-day policy window (purchased ${daysAgo} days ago). Escalated for human review.`,
+        details: { duplicateItemName, daysAgo, windowDays },
+      };
+      ruleTrace.push(trace);
+      decision = stricterDecision(decision, 'NEEDS_HUMAN');
+    }
+  } else {
+    ruleTrace.push({
+      ruleId: 'DUPLICATE_CHECK_PASSED',
+      name: 'Duplicate Purchase Window Check',
+      passed: true,
+      verdict: 'AUTO_APPROVE',
+      reason: `No duplicate purchases of identical items found within the ${windowDays}-day policy window.`,
+    });
+  }
+
+  // 15. Auditor Verdict Integration (Can only tighten)
   if (auditorVerdict) {
     if (auditorVerdict.verdict === 'block') {
       const trace: RuleTrace = {

@@ -70,6 +70,8 @@ export interface Policy {
   blockedKeywords: string[];
   blockedSellers: string[];
   killSwitchActive: boolean;
+  duplicateWindowDays?: number; // Configurable duplicate detection window in days (default: 30)
+  duplicateRapidBlockMinutes?: number; // Rapid duplicate threshold in minutes triggering immediate BLOCK (default: 10)
 }
 
 export interface SpendRecord {
@@ -81,6 +83,8 @@ export interface SpendRecord {
   timestamp: string;
   status: 'COMPLETED' | 'PENDING' | 'REJECTED';
   proposalSummary?: string;
+  listingId?: string;
+  itemTitle?: string;
 }
 
 export type AuditEventType =
