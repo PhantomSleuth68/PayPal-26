@@ -169,3 +169,4 @@ export const SEED_PRODUCTS: ProductListing[] = [
     inventoryCount: 8,
   },
 ];
+

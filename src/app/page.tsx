@@ -37,6 +37,7 @@ export default function AgentPage() {
   // Demo runner state
   const [runningDemo, setRunningDemo] = useState(false);
   const [demoResults, setDemoResults] = useState<any[] | null>(null);
+  const [demoRunId, setDemoRunId] = useState<string | null>(null);
 
   const handleRunAgent = async (promptToUse?: string) => {
     const text = (promptToUse || query).trim();
@@ -65,6 +66,7 @@ export default function AgentPage() {
     if (runningDemo) return;
     setRunningDemo(true);
     setDemoResults(null);
+    setDemoRunId(null);
 
     try {
       const res = await fetch('/api/demo', {
@@ -76,6 +78,7 @@ export default function AgentPage() {
       const data = await res.json();
       if (data.scenarios) {
         setDemoResults(data.scenarios);
+        setDemoRunId(data.runId || null);
       }
     } catch (e) {
       console.error('Demo runner failed:', e);
@@ -127,9 +130,22 @@ export default function AgentPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <CheckCircle className="w-5 h-5 text-emerald-400" />
-              <h3 className="font-bold text-sm text-white">
-                Demo Runner Suite Results ({demoResults.filter((d) => d.passedCheck).length} / {demoResults.length} Passed)
-              </h3>
+              <div>
+                <h3 className="font-bold text-sm text-white">
+                  Demo Runner Suite Results ({demoResults.filter((d) => d.passedCheck).length} / {demoResults.length} Passed)
+                </h3>
+                {demoRunId && (
+                  <p className="text-[11px] text-gray-400 font-mono mt-0.5">
+                    Run ID: {demoRunId} •{' '}
+                    <Link
+                      href={`/audit?runId=${demoRunId}`}
+                      className="text-blue-400 hover:text-blue-300 underline font-sans"
+                    >
+                      Filter Audit Log to this run
+                    </Link>
+                  </p>
+                )}
+              </div>
             </div>
             <button
               onClick={() => setDemoResults(null)}

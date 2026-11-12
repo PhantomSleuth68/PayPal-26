@@ -95,3 +95,4 @@ describe('Injection Shield & Deterministic Safety', () => {
     expect(evaluation.blockingReason).toContain('exceeding the $200.00 cap');
   });
 });
+

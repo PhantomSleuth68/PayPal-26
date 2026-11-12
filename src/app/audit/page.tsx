@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AuditLogEntry, AuditEventType } from '../../core/types';
 import {
   ListFilter,
@@ -18,17 +19,24 @@ import {
   Clock,
 } from 'lucide-react';
 
-export default function AuditLogPage() {
+function AuditLogContent() {
+  const searchParams = useSearchParams();
+  const initialRunId = searchParams?.get('runId') || '';
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('ALL');
+  const [runIdFilter, setRunIdFilter] = useState<string>(initialRunId);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (rId?: string) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/audit?limit=200');
+      const targetRunId = rId !== undefined ? rId : runIdFilter;
+      const url = targetRunId
+        ? `/api/audit?limit=200&runId=${encodeURIComponent(targetRunId)}`
+        : '/api/audit?limit=200';
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || []);
@@ -41,8 +49,8 @@ export default function AuditLogPage() {
   };
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    fetchLogs(initialRunId);
+  }, [initialRunId]);
 
   const getEventBadge = (type: AuditEventType) => {
     switch (type) {
@@ -231,5 +239,13 @@ export default function AuditLogPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AuditLogPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-16 text-gray-500 text-xs font-mono">Loading audit logs...</div>}>
+      <AuditLogContent />
+    </Suspense>
   );
 }

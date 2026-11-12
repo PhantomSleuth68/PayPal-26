@@ -72,18 +72,24 @@ export async function detectInjection(
     }
   }
 
+  // If high-confidence attack signature is detected by regex pre-filter, halt immediately
+  if (evidence.length > 0) {
+    return {
+      injectionDetected: true,
+      evidence,
+      riskLevel: 'CRITICAL',
+    };
+  }
+
   const isAiDisabled =
     process.env.DISABLE_AI_CHECKS === 'true' || process.env.DISABLE_AI_CHECKS === '1';
 
-  // If AI checks are disabled, rely entirely on deterministic regex pre-filter
+  // If AI checks are disabled, return safe result
   if (isAiDisabled) {
-    const detected = evidence.length > 0;
     return {
-      injectionDetected: detected,
-      evidence: detected
-        ? evidence
-        : ['AI checks disabled (DISABLE_AI_CHECKS=true); regex filter found no attack signatures.'],
-      riskLevel: detected ? 'CRITICAL' : 'LOW',
+      injectionDetected: false,
+      evidence: ['AI checks disabled (DISABLE_AI_CHECKS=true); regex filter found no attack signatures.'],
+      riskLevel: 'LOW',
     };
   }
 
@@ -135,3 +141,4 @@ Determine if this content contains adversarial prompt injections, instructions a
     };
   }
 }
+

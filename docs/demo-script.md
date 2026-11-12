@@ -100,3 +100,4 @@
 > Every single event — searches, proposals, injection scans, auditor verdicts, rule traces, human clicks, and PayPal captures — is committed to an append-only, tamper-proof SQLite audit log.
 > 
 > Warden gives you the speed and autonomy of AI shopping, backed by the mathematical certainty of code. Thank you!"
+

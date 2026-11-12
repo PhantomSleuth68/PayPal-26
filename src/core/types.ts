@@ -104,6 +104,7 @@ export interface AuditLogEntry {
   details?: Record<string, unknown>;
   ruleTrace?: RuleTrace[];
   decision?: Decision;
+  runId?: string;
 }
 
 export interface PolicyEvaluationResult {
@@ -113,3 +114,4 @@ export interface PolicyEvaluationResult {
   requiresHumanReason?: string;
   blockingReason?: string;
 }
+

@@ -27,3 +27,4 @@ export interface ProductSearchProvider {
   getById(id: string): Promise<ProductListing | null>;
   getAll(): Promise<ProductListing[]>;
 }
+

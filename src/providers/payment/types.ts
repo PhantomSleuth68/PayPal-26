@@ -5,12 +5,14 @@ export interface CreateOrderParams {
   description: string;
   customId?: string;
   idempotencyKey?: string;
+  sandboxAutoPay?: boolean;
 }
 
 export interface OrderResult {
   orderId: string;
   status: string;
   approvalUrl?: string;
+  captureId?: string;
   rawResponse?: unknown;
 }
 
@@ -39,3 +41,4 @@ export interface PaymentProvider {
   captureOrder(params: CaptureOrderParams): Promise<CaptureResult>;
   getOrder(orderId: string): Promise<unknown>;
 }
+

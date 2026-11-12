@@ -71,9 +71,17 @@ function initTables(db: Database.Database): void {
       summary TEXT NOT NULL,
       details_json TEXT,
       rule_trace_json TEXT,
-      decision TEXT
+      decision TEXT,
+      run_id TEXT
     );
   `);
+
+  try {
+    const pragma = db.pragma('table_info(audit_log)') as Array<{ name: string }>;
+    if (!pragma.some((col) => col.name === 'run_id')) {
+      db.exec('ALTER TABLE audit_log ADD COLUMN run_id TEXT;');
+    }
+  } catch {}
 
   // Human approval requests
   db.exec(`
@@ -158,11 +166,12 @@ export function getActivePolicy(): Policy {
 }
 
 // Audit log helpers
-export function logAuditEvent(entry: AuditLogEntry): void {
+export function logAuditEvent(entry: AuditLogEntry, runId?: string): void {
   const db = getDb();
+  const actualRunId = runId || entry.runId || null;
   db.prepare(`
-    INSERT INTO audit_log (id, timestamp, event_type, summary, details_json, rule_trace_json, decision)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO audit_log (id, timestamp, event_type, summary, details_json, rule_trace_json, decision, run_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     entry.id,
     entry.timestamp,
@@ -170,15 +179,23 @@ export function logAuditEvent(entry: AuditLogEntry): void {
     entry.summary,
     entry.details ? JSON.stringify(entry.details) : null,
     entry.ruleTrace ? JSON.stringify(entry.ruleTrace) : null,
-    entry.decision || null
+    entry.decision || null,
+    actualRunId
   );
 }
 
-export function getAuditLogs(limit = 100): AuditLogEntry[] {
+export function getAuditLogs(limit = 100, runId?: string): AuditLogEntry[] {
   const db = getDb();
-  const rows = db
-    .prepare('SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ?')
-    .all(limit) as Array<{
+  let query = 'SELECT * FROM audit_log';
+  const params: unknown[] = [];
+  if (runId) {
+    query += ' WHERE run_id = ?';
+    params.push(runId);
+  }
+  query += ' ORDER BY timestamp DESC LIMIT ?';
+  params.push(limit);
+
+  const rows = db.prepare(query).all(...params) as Array<{
     id: string;
     timestamp: string;
     event_type: string;
@@ -186,6 +203,7 @@ export function getAuditLogs(limit = 100): AuditLogEntry[] {
     details_json: string | null;
     rule_trace_json: string | null;
     decision: string | null;
+    run_id: string | null;
   }>;
 
   return rows.map((r) => ({
@@ -196,7 +214,44 @@ export function getAuditLogs(limit = 100): AuditLogEntry[] {
     details: r.details_json ? JSON.parse(r.details_json) : undefined,
     ruleTrace: r.rule_trace_json ? JSON.parse(r.rule_trace_json) : undefined,
     decision: r.decision as Decision | undefined,
+    runId: r.run_id || undefined,
   }));
+}
+
+export function resetDemoState(runId: string): void {
+  const db = getDb();
+  // Clear spend history and pending approvals
+  db.exec('DELETE FROM spend_history;');
+  db.exec('DELETE FROM approvals;');
+
+  // Restore kill switch OFF
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO system_state (key, value, updated_at) 
+     VALUES ('kill_switch_active', 'false', ?) 
+     ON CONFLICT(key) DO UPDATE SET value = 'false', updated_at = excluded.updated_at`
+  ).run(now);
+
+  // Restore default policy without blocked sellers
+  db.prepare(
+    `INSERT INTO system_state (key, value, updated_at) 
+     VALUES ('active_policy', ?, ?) 
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).run(JSON.stringify(DEFAULT_POLICY), now);
+
+  // Append initialization event to audit log with this runId
+  logAuditEvent(
+    {
+      id: `audit_demo_init_${Date.now()}`,
+      timestamp: now,
+      eventType: 'SEARCH',
+      summary: `DEMO RUN INITIALIZED (${runId}): Cleared purchase history, pending approvals, and restored default policy. Kill switch OFF.`,
+      details: { runId },
+      decision: 'AUTO_APPROVE',
+      runId,
+    },
+    runId
+  );
 }
 
 // Spend history helpers
@@ -366,3 +421,4 @@ export function saveOrderRecord(record: {
     now
   );
 }
+

@@ -55,3 +55,4 @@ export class MockProductProvider implements ProductSearchProvider {
 }
 
 export const mockProductProvider = new MockProductProvider();
+

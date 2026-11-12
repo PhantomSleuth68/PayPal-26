@@ -92,21 +92,29 @@ export async function runShoppingPipeline(
     customPolicy?: Policy;
     forcedListings?: ProductListing[];
     autoCapturePayPal?: boolean;
+    customSpendHistory?: SpendRecord[];
+    recordSpendInDb?: boolean;
+    runId?: string;
   }
 ): Promise<PipelineExecutionResult> {
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const runId = options?.runId;
   const stages: PipelineStageResult[] = [];
   const policy = options?.customPolicy || getActivePolicy();
-  const spendHistory = getSpendHistory();
+  const spendHistory = options?.customSpendHistory !== undefined ? options.customSpendHistory : getSpendHistory();
 
   // Log start
-  logAuditEvent({
-    id: `audit_start_${requestId}`,
-    timestamp: new Date().toISOString(),
-    eventType: 'SEARCH',
-    summary: `User submitted purchase request: "${userRequest}"`,
-    details: { requestId, userRequest },
-  });
+  logAuditEvent(
+    {
+      id: `audit_start_${requestId}`,
+      timestamp: new Date().toISOString(),
+      eventType: 'SEARCH',
+      summary: `User submitted purchase request: "${userRequest}"`,
+      details: { requestId, userRequest, runId },
+      runId,
+    },
+    runId
+  );
 
   // Stage 1: Product Search
   const t0 = Date.now();
@@ -364,31 +372,64 @@ export async function runShoppingPipeline(
       currency: 'USD',
       referenceId: `auto_ref_${requestId}`,
       description: `Warden Auto-Approved: ${proposal.items[0]?.title}`.slice(0, 127),
+      sandboxAutoPay: options?.autoCapturePayPal !== false,
     });
 
     orderId = order.orderId;
     approvalUrl = order.approvalUrl;
+    captureId = order.captureId;
 
     saveOrderRecord({
       orderId: order.orderId,
       referenceId: `auto_ref_${requestId}`,
       amount: proposal.total,
       currency: 'USD',
-      status: order.status,
+      status: captureId ? 'COMPLETED' : order.status,
+      captureId: captureId || undefined,
       proposal,
     });
 
-    logAuditEvent({
-      id: `audit_pp_create_${requestId}`,
-      timestamp: new Date().toISOString(),
-      eventType: 'PAYPAL_ORDER_CREATED',
-      summary: `PayPal Sandbox Order ${order.orderId} created for $${proposal.total.toFixed(2)}`,
-      details: { orderId: order.orderId, status: order.status, approvalUrl },
-      decision: 'AUTO_APPROVE',
-    });
+    logAuditEvent(
+      {
+        id: `audit_pp_create_${requestId}`,
+        timestamp: new Date().toISOString(),
+        eventType: 'PAYPAL_ORDER_CREATED',
+        summary: `PayPal Sandbox Order ${order.orderId} created for $${proposal.total.toFixed(2)}`,
+        details: { orderId: order.orderId, status: order.status, approvalUrl, captureId },
+        decision: 'AUTO_APPROVE',
+        runId,
+      },
+      runId
+    );
 
-    // Attempt capture if autoCapture requested or standard flow
-    if (options?.autoCapturePayPal !== false) {
+    // If already captured via direct sandboxAutoPay
+    if (captureId) {
+      if (options?.recordSpendInDb !== false) {
+        recordSpend({
+          id: `spend_${Date.now()}`,
+          orderId: order.orderId,
+          captureId,
+          amount: proposal.total,
+          category: proposal.category,
+          timestamp: new Date().toISOString(),
+          status: 'COMPLETED',
+          proposalSummary: proposal.items[0]?.title,
+        });
+      }
+
+      logAuditEvent(
+        {
+          id: `audit_pp_cap_${requestId}`,
+          timestamp: new Date().toISOString(),
+          eventType: 'PAYPAL_ORDER_CAPTURED',
+          summary: `PayPal Sandbox Capture ${captureId} completed ($${proposal.total.toFixed(2)})`,
+          details: { captureId, orderId: order.orderId },
+          decision: 'AUTO_APPROVE',
+          runId,
+        },
+        runId
+      );
+    } else if (options?.autoCapturePayPal !== false) {
       try {
         const capture = await paypalProvider.captureOrder({ orderId: order.orderId });
         captureId = capture.captureId;
@@ -403,37 +444,43 @@ export async function runShoppingPipeline(
           proposal,
         });
 
-        recordSpend({
-          id: `spend_${Date.now()}`,
-          orderId: order.orderId,
-          captureId: capture.captureId,
-          amount: proposal.total,
-          category: proposal.category,
-          timestamp: new Date().toISOString(),
-          status: 'COMPLETED',
-          proposalSummary: proposal.items[0]?.title,
-        });
+        if (options?.recordSpendInDb !== false) {
+          recordSpend({
+            id: `spend_${Date.now()}`,
+            orderId: order.orderId,
+            captureId: capture.captureId,
+            amount: proposal.total,
+            category: proposal.category,
+            timestamp: new Date().toISOString(),
+            status: 'COMPLETED',
+            proposalSummary: proposal.items[0]?.title,
+          });
+        }
 
-        logAuditEvent({
-          id: `audit_pp_cap_${requestId}`,
-          timestamp: new Date().toISOString(),
-          eventType: 'PAYPAL_ORDER_CAPTURED',
-          summary: `PayPal Sandbox Capture ${capture.captureId} completed ($${proposal.total.toFixed(2)})`,
-          details: { captureId: capture.captureId, orderId: order.orderId },
-          decision: 'AUTO_APPROVE',
-        });
+        logAuditEvent(
+          {
+            id: `audit_pp_cap_${requestId}`,
+            timestamp: new Date().toISOString(),
+            eventType: 'PAYPAL_ORDER_CAPTURED',
+            summary: `PayPal Sandbox Capture ${capture.captureId} completed ($${proposal.total.toFixed(2)})`,
+            details: { captureId: capture.captureId, orderId: order.orderId },
+            decision: 'AUTO_APPROVE',
+            runId,
+          },
+          runId
+        );
       } catch (capErr: any) {
-        // In PayPal Orders v2 sandbox, capture requires buyer approval token
-        // Save state as CREATED with approval link
-        recordSpend({
-          id: `spend_${Date.now()}`,
-          orderId: order.orderId,
-          amount: proposal.total,
-          category: proposal.category,
-          timestamp: new Date().toISOString(),
-          status: 'PENDING',
-          proposalSummary: `${proposal.items[0]?.title} (Awaiting Sandbox Buyer Approval)`,
-        });
+        if (options?.recordSpendInDb !== false) {
+          recordSpend({
+            id: `spend_${Date.now()}`,
+            orderId: order.orderId,
+            amount: proposal.total,
+            category: proposal.category,
+            timestamp: new Date().toISOString(),
+            status: 'PENDING',
+            proposalSummary: `${proposal.items[0]?.title} (Awaiting Sandbox Buyer Approval)`,
+          });
+        }
       }
     }
 
@@ -494,3 +541,4 @@ export async function runShoppingPipeline(
     };
   }
 }
+

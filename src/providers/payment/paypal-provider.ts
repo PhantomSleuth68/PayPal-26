@@ -77,7 +77,7 @@ export class PayPalProvider implements PaymentProvider {
     const idempotencyKey = params.idempotencyKey || `ord_${crypto.randomUUID()}`;
     const url = `${this.getBaseUrl()}/v2/checkout/orders`;
 
-    const body = {
+    const body: Record<string, unknown> = {
       intent: 'CAPTURE',
       purchase_units: [
         {
@@ -91,6 +91,18 @@ export class PayPalProvider implements PaymentProvider {
         },
       ],
     };
+
+    // If sandboxAutoPay is requested in Sandbox mode, pass standard test card for immediate completed capture
+    if (params.sandboxAutoPay && (process.env.PAYPAL_ENV || 'sandbox') !== 'live') {
+      body.payment_source = {
+        card: {
+          name: 'Warden Sandbox Tester',
+          number: '4111111111111111',
+          expiry: '2028-12',
+          security_code: '123',
+        },
+      };
+    }
 
     const response = await fetch(url, {
       method: 'POST',
@@ -108,11 +120,14 @@ export class PayPalProvider implements PaymentProvider {
     }
 
     const approveLink = data.links?.find((l: { rel: string; href: string }) => l.rel === 'approve');
+    const directCaptureId =
+      data.purchase_units?.[0]?.payments?.captures?.[0]?.id || undefined;
 
     return {
       orderId: data.id,
       status: data.status,
       approvalUrl: approveLink ? approveLink.href : undefined,
+      captureId: directCaptureId,
       rawResponse: data,
     };
   }
@@ -189,3 +204,4 @@ export class PayPalProvider implements PaymentProvider {
 }
 
 export const paypalProvider = new PayPalProvider();
+

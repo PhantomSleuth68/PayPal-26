@@ -124,3 +124,4 @@ export async function callGeminiStructured<T>(params: {
 
   return validated;
 }
+
