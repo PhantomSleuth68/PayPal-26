@@ -365,7 +365,7 @@ export async function runShoppingPipeline(
         amount: proposal.total,
         currency: 'USD',
         referenceId: `appr_ref_${requestId}`,
-        description: `Warden Order: ${proposal.items[0]?.title}`.slice(0, 127),
+        description: `Allowance Order: ${proposal.items[0]?.title}`.slice(0, 127),
       });
       orderId = order.orderId;
       approvalUrl = order.approvalUrl;
@@ -407,7 +407,7 @@ export async function runShoppingPipeline(
       amount: proposal.total,
       currency: 'USD',
       referenceId: `auto_ref_${requestId}`,
-      description: `Warden Auto-Approved: ${proposal.items[0]?.title}`.slice(0, 127),
+      description: `Allowance Auto-Approved: ${proposal.items[0]?.title}`.slice(0, 127),
       sandboxAutoPay: options?.autoCapturePayPal !== false,
     });
 

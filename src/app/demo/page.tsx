@@ -89,7 +89,7 @@ export default function DemoPage() {
             Demo Mode: 7 Safety & Overspend Scenarios
           </h1>
           <p className="mt-2 text-sm text-gray-400 leading-relaxed">
-            Run the seeded adversarial and edge-case purchase proposals through Warden.
+            Run the seeded adversarial and edge-case purchase proposals through Allowance.
             Each test proves how AI judgment and deterministic policy engine limits collaborate
             to prevent overspend, halt prompt injections, catch split orders, and block fine-print subscriptions.
           </p>

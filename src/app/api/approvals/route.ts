@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         amount: target.proposal.total,
         currency: 'USD',
         referenceId: `appr_paid_${approvalId}`,
-        description: `Warden Approved: ${target.proposal.items[0]?.title}`.slice(0, 127),
+        description: `Allowance Approved: ${target.proposal.items[0]?.title}`.slice(0, 127),
       });
       orderId = order.orderId;
     }

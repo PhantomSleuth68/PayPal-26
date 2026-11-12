@@ -24,7 +24,7 @@ async function run() {
       amount: 10.0,
       currency: 'USD',
       referenceId: `ref_check_${Date.now()}`,
-      description: 'Warden $10 Sandbox Verification Item',
+      description: 'Allowance $10 Sandbox Verification Item',
       idempotencyKey,
     });
 
@@ -81,7 +81,7 @@ async function run() {
         category: 'office supplies',
         timestamp: new Date().toISOString(),
         status: 'COMPLETED',
-        proposalSummary: 'Warden $10 Sandbox Verification Item',
+        proposalSummary: 'Allowance $10 Sandbox Verification Item',
       });
     } catch (captureErr: any) {
       console.log('[PayPal Sandbox Check] Capture response:', captureErr.message);

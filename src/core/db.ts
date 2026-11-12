@@ -12,7 +12,7 @@ import {
 } from './types';
 import { DEFAULT_POLICY } from './policy-engine';
 
-const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'warden.db');
+const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'allowance.db');
 
 // Ensure db directory exists
 const dbDir = path.dirname(DB_PATH);

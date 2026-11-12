@@ -35,7 +35,7 @@ describe('PayPal Gateway - Sandbox Orders v2', () => {
       amount: 10.0,
       currency: 'USD',
       referenceId: `ref_unit_${Date.now()}`,
-      description: 'Warden $10 Sandbox Test Item',
+      description: 'Allowance $10 Sandbox Test Item',
       idempotencyKey,
     });
 

@@ -60,12 +60,12 @@ describe('Demo Runner Full Suite Verification', { timeout: 600000 }, () => {
     expect(sc1.captureId).toBeDefined();
     expect(typeof sc1.captureId).toBe('string');
 
-    // Verify Scenario 3 has NEEDS_HUMAN
+    // Scenario 3 (split order) must be BLOCKed for the split-order reason
     const sc3 = data.scenarios.find((s: any) => s.scenarioId === 'scenario-3-split-order');
-    expect(sc3.actualOutcome).toBe('NEEDS_HUMAN');
+    expect(sc3.actualOutcome).toBe('BLOCK');
 
-    // Verify Scenario 5 has NEEDS_HUMAN (escalated by Auditor for market price gouging)
+    // Scenario 5 (4x price) must be BLOCKed for the price reason
     const sc5 = data.scenarios.find((s: any) => s.scenarioId === 'scenario-5-price-gouging');
-    expect(sc5.actualOutcome).toBe('NEEDS_HUMAN');
+    expect(sc5.actualOutcome).toBe('BLOCK');
   }, 600000);
 });

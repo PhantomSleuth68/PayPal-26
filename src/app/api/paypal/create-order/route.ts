@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ref = referenceId || `ref_${Date.now()}`;
-    const desc = (description || 'Warden Purchase').slice(0, 127);
+    const desc = (description || 'Allowance Purchase').slice(0, 127);
 
     const order = await paypalProvider.createOrder({
       amount,

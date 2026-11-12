@@ -81,6 +81,18 @@ export function isRetryableAiError(err: any): boolean {
   return false;
 }
 
+/**
+ * A bad or retired model name (404 / NOT_FOUND) should send us to the fallback model
+ * instead of failing the whole request.
+ */
+export function isModelNotFoundError(err: any): boolean {
+  if (!err) return false;
+  const status = err.status || err.statusCode || err.code || err.error?.code;
+  if (status === 404) return true;
+  const msg = (err.message || String(err)).toLowerCase();
+  return msg.includes('not_found') || msg.includes('is not found') || msg.includes('not supported for generatecontent');
+}
+
 async function generateWithTimeout(
   ai: GoogleGenAI,
   model: string,
@@ -148,6 +160,9 @@ export async function callGeminiStructured<T>(params: {
       if (rawResponseText) break;
     } catch (err: any) {
       lastError = err;
+      if (isModelNotFoundError(err)) {
+        break; // no point retrying a bad model name; go straight to the fallback model
+      }
       if (!isRetryableAiError(err)) {
         throw err;
       }
@@ -170,7 +185,7 @@ export async function callGeminiStructured<T>(params: {
   }
 
   if (!rawResponseText) {
-    if (lastError && isRetryableAiError(lastError)) {
+    if (lastError && (isRetryableAiError(lastError) || isModelNotFoundError(lastError))) {
       throw new AiUnavailableError(
         `AI_UNAVAILABLE: Gemini service is currently unavailable or rate limited (503/429) after all retry attempts on ${primaryModel} and fallback model ${fallbackModel}. Last error: ${lastError.message}`,
         lastError

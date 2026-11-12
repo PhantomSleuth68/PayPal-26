@@ -3,7 +3,7 @@ import { Header } from '../components/Header';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Warden - AI that can shop but cannot overspend',
+  title: 'Allowance - AI that can shop but cannot overspend',
   description:
     'Autonomous shopping agent with deterministic policy guardrails, adversarial injection shield, and PayPal Sandbox integration.',
 };
@@ -21,7 +21,7 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t border-gray-900 bg-gray-950 py-6 text-center text-xs text-gray-500">
-          <p>Warden • Built for PayPal & AI Hackathon • PayPal Sandbox Orders v2 • Deterministic Code Safety Layer</p>
+          <p>Allowance • Built for PayPal & AI Hackathon • PayPal Sandbox Orders v2 • Deterministic Code Safety Layer</p>
         </footer>
       </body>
     </html>

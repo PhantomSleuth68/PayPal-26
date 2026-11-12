@@ -96,7 +96,7 @@ export class PayPalProvider implements PaymentProvider {
     if (params.sandboxAutoPay && (process.env.PAYPAL_ENV || 'sandbox') !== 'live') {
       body.payment_source = {
         card: {
-          name: 'Warden Sandbox Tester',
+          name: 'Allowance Sandbox Tester',
           number: '4111111111111111',
           expiry: '2028-12',
           security_code: '123',

@@ -4,7 +4,7 @@ import { mockProductProvider } from '../providers/products/mock-provider';
 import { callGeminiStructured, FAST_MODEL } from './gemini-client';
 
 const SHOPPER_SYSTEM_PROMPT = `
-You are Warden's autonomous Shopper Agent.
+You are Allowance's autonomous Shopper Agent.
 Your responsibility is to analyze a user's natural language purchase request, select the best matching item from the provided catalog listings, and generate a structured PurchaseProposal.
 
 STRICT OPERATIONAL BOUNDARIES:
